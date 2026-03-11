@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ilias Ibnyahya — Audio DSP Researcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0c;
+      --surface: #111116;
+      --border: #1e1e28;
+      --accent: #c8f060;
+      --accent2: #60c8f0;
+      --text: #e8e8f0;
+      --muted: #6a6a80;
+      --card: #13131a;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      line-height: 1.7;
+      overflow-x: hidden;
+      cursor: none;
+    }
+
+    /* Custom cursor */
+    .cursor {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      transition: width 0.2s, height 0.2s, opacity 0.2s;
+      mix-blend-mode: difference;
+    }
+    .cursor.big {
+      width: 40px;
+      height: 40px;
+      opacity: 0.5;
+    }
+
+    /* Noise overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.5;
+    }
+
+    /* Layout */
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.3s, background 0.3s;
+      background: transparent;
+    }
+    nav.scrolled {
+      border-color: var(--border);
+      background: rgba(10,10,12,0.92);
+      backdrop-filter: blur(12px);
+    }
+    .nav-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--accent); }
+
+    /* Hero */
+    #hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      padding-top: 80px;
+    }
+
+    .hero-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(200,240,96,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(200,240,96,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      animation: gridShift 30s linear infinite;
+    }
+    @keyframes gridShift {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(60px); }
+    }
+
+    .hero-glow {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(200,240,96,0.06) 0%, transparent 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hero-eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 40px;
+      height: 1px;
+      background: var(--accent);
+    }
+
+    .hero-name {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(52px, 8vw, 96px);
+      font-weight: 800;
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      margin-bottom: 32px;
+    }
+    .hero-name .line1 { display: block; color: var(--text); }
+    .hero-name .line2 {
+      display: block;
+      color: transparent;
+      -webkit-text-stroke: 1px rgba(232,232,240,0.25);
+    }
+
+    .hero-desc {
+      max-width: 520px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.8;
+      margin-bottom: 40px;
+    }
+    .hero-desc strong { color: var(--text); font-weight: 500; }
+
+    .hero-links {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #0a0a0c;
+      font-weight: 500;
+    }
+    .btn-primary:hover {
+      background: #deff7a;
+      transform: translateY(-2px);
+    }
+    .btn-ghost {
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-ghost:hover {
+      border-color: var(--muted);
+      color: var(--text);
+      transform: translateY(-2px);
+    }
+
+    /* Waveform decoration */
+    .waveform {
+      position: absolute;
+      bottom: 40px;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 3px;
+      height: 48px;
+      opacity: 0.3;
+    }
+    .waveform-bar {
+      width: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      animation: wave 1.4s ease-in-out infinite;
+    }
+    @keyframes wave {
+      0%, 100% { transform: scaleY(0.3); }
+      50% { transform: scaleY(1); }
+    }
+
+    /* Sections */
+    section {
+      padding: 100px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .section-label {
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 48px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* About */
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: start;
+    }
+    .about-text {
+      color: var(--muted);
+      line-height: 1.9;
+    }
+    .about-text p + p { margin-top: 16px; }
+    .about-text strong { color: var(--text); font-weight: 500; }
+    .about-text a { color: var(--accent2); text-decoration: none; }
+    .about-text a:hover { text-decoration: underline; }
+
+    .about-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .stat-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .stat-value { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; color: var(--text); }
+    .stat-value span { font-size: 12px; color: var(--accent); font-family: 'DM Mono', monospace; font-weight: 400; }
+
+    /* Publications */
+    .pub-list { display: flex; flex-direction: column; gap: 2px; }
+
+    .pub-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 28px 32px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 24px;
+      align-items: start;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .pub-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--accent);
+      transform: scaleY(0);
+      transition: transform 0.3s;
+    }
+    .pub-item:hover { border-color: rgba(200,240,96,0.2); }
+    .pub-item:hover::before { transform: scaleY(1); }
+
+    .pub-year {
+      font-size: 12px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      padding-top: 2px;
+      min-width: 40px;
+    }
+
+    .pub-meta {}
+    .pub-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+    .pub-authors {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .pub-authors .me { color: var(--text); }
+    .pub-venue {
+      display: inline-block;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      background: rgba(96,200,240,0.08);
+      padding: 3px 10px;
+      border-radius: 2px;
+    }
+    .pub-badge {
+      display: inline-block;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #0a0a0c;
+      background: var(--accent);
+      padding: 3px 8px;
+      border-radius: 2px;
+      margin-left: 8px;
+      font-weight: 500;
+    }
+
+    .pub-links {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-end;
+    }
+    .pub-link {
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      text-decoration: none;
+      border: 1px solid;
+      padding: 5px 12px;
+      transition: all 0.2s;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .pub-link.paper {
+      color: var(--accent2);
+      border-color: rgba(96,200,240,0.35);
+      background: rgba(96,200,240,0.06);
+    }
+    .pub-link.paper:hover {
+      background: rgba(96,200,240,0.14);
+      border-color: var(--accent2);
+    }
+    .pub-link.code {
+      color: var(--accent);
+      border-color: rgba(200,240,96,0.35);
+      background: rgba(200,240,96,0.06);
+    }
+    .pub-link.code:hover {
+      background: rgba(200,240,96,0.14);
+      border-color: var(--accent);
+    }
+    .pub-summary {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-top: 10px;
+      max-width: 560px;
+    }
+
+    /* Research areas */
+    .research-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+    }
+    .research-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 32px 28px;
+      transition: border-color 0.2s;
+    }
+    .research-card:hover { border-color: rgba(200,240,96,0.2); }
+    .research-icon {
+      font-size: 24px;
+      margin-bottom: 16px;
+      display: block;
+    }
+    .research-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .research-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* Tool card */
+    .tool-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 40px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .tool-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+    .tool-card:hover { border-color: rgba(200,240,96,0.25); }
+    .tool-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      margin-bottom: 20px;
+    }
+    .tool-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .tool-tagline {
+      font-size: 12px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+    .tool-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.85;
+      max-width: 680px;
+      margin-bottom: 24px;
+    }
+    .tool-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      font-size: 11px;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 2px;
+    }
+
+    /* Contact / Footer */
+    #contact {
+      padding-bottom: 60px;
+    }
+    .contact-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .contact-heading {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 24px;
+    }
+    .contact-heading em {
+      font-style: normal;
+      color: var(--accent);
+    }
+    .contact-links {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: flex-end;
+    }
+    .contact-link {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s;
+    }
+    .contact-link:hover { color: var(--accent); }
+    .contact-link::before {
+      content: '→';
+      opacity: 0;
+      transform: translateX(-8px);
+      transition: all 0.2s;
+    }
+    .contact-link:hover::before { opacity: 1; transform: translateX(0); }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 0;
+    }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* Animations */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 720px) {
+      nav { padding: 16px 20px; }
+      .container { padding: 0 20px; }
+      .about-grid { grid-template-columns: 1fr; gap: 40px; }
+      .research-grid { grid-template-columns: 1fr; }
+      .pub-item { grid-template-columns: auto 1fr; }
+      .pub-links { display: none; }
+      .contact-inner { flex-direction: column; gap: 40px; align-items: flex-start; }
+      .contact-links { align-items: flex-start; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+
+<nav id="nav">
+  <a class="nav-logo" href="#">II</a>
+  <ul class="nav-links">
+    <li><a href="#about">About</a></li>
+    <li><a href="#research">Research</a></li>
+    <li><a href="#publications">Publications</a></li>
+    <li><a href="#tools">Tools</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+</nav>
+
+<section id="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+  <div class="container">
+    <div class="hero-content">
+      <div class="hero-eyebrow">PhD Researcher · C4DM · QMUL</div>
+      <h1 class="hero-name">
+        <span class="line1">Ilias</span>
+        <span class="line2">Ibnyahya</span>
+      </h1>
+      <p class="hero-desc">
+        Building <strong>differentiable audio systems</strong> at the intersection of signal processing and machine learning.
+        Specialising in artificial reverberation, <strong>Feedback Delay Networks</strong>, and intelligent audio effects — based at the Centre for Digital Music.
+      </p>
+      <div class="hero-links">
+        <a href="#publications" class="btn btn-primary">View Publications</a>
+        <a href="https://github.com/ilias-audio" class="btn btn-ghost" target="_blank">GitHub</a>
+        <a href="https://scholar.google.com/citations?user=XW1iWGgAAAAJ" class="btn btn-ghost" target="_blank">Scholar</a>
+      </div>
+    </div>
+  </div>
+  <div class="waveform" id="waveform"></div>
+</section>
+
+<section id="about">
+  <div class="container">
+    <div class="section-label">About</div>
+    <div class="about-grid">
+      <div class="about-text fade-in">
+        <p>
+          I'm a PhD researcher at <strong>Queen Mary University of London</strong>, working within the
+          <a href="https://c4dm.eecs.qmul.ac.uk" target="_blank">Centre for Digital Music (C4DM)</a>
+          under the supervision of Prof. <strong>Joshua D. Reiss</strong>.
+          Prior to my PhD, I spent <strong>8 years at DiGiCo</strong>, developing professional audio systems and bridging engineering with live sound production.
+        </p>
+        <p>
+          My research focuses on making reverberation algorithms <strong>fully differentiable</strong> — enabling gradient-based optimisation of parameters that were previously hand-tuned or inaccessible to learning frameworks.
+          The goal is to close the gap between the perceptual richness of convolution reverb and the parametric control of algorithmic approaches.
+        </p>
+        <p>
+          I'm currently finalising work on a differentiable Feedback Delay Network that clones target room impulse responses using gradient descent, with a novel parametric EQ approach that reduces filter complexity by over two-thirds without sacrificing accuracy.
+        </p>
+      </div>
+      <div class="about-stats fade-in">
+        <div class="stat-row">
+          <span class="stat-label">Affiliation</span>
+          <span class="stat-value" style="font-size:14px; font-family: 'DM Mono', monospace; font-weight:400;">C4DM, QMUL</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Ex-Industry</span>
+          <span class="stat-value" style="font-size:14px; font-family: 'DM Mono', monospace; font-weight:400;">DiGiCo <span>8 yrs</span></span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Focus</span>
+          <span class="stat-value" style="font-size:14px; font-family: 'DM Mono', monospace; font-weight:400;">Differentiable DSP</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Publications</span>
+          <span class="stat-value">3 <span>papers</span></span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Venues</span>
+          <span class="stat-value" style="font-size:13px; font-family: 'DM Mono', monospace; font-weight:400;">DAFx · AES · ISMIR</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Location</span>
+          <span class="stat-value" style="font-size:14px; font-family: 'DM Mono', monospace; font-weight:400;">London, UK</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="research">
+  <div class="container">
+    <div class="section-label">Research Areas</div>
+    <div class="research-grid">
+      <div class="research-card fade-in">
+        <span class="research-icon">⟳</span>
+        <div class="research-title">Artificial Reverberation</div>
+        <p class="research-desc">Designing and optimising Feedback Delay Networks (FDNs) to synthesise realistic room acoustics with parametric control over frequency-dependent decay.</p>
+      </div>
+      <div class="research-card fade-in">
+        <span class="research-icon">∂</span>
+        <div class="research-title">Differentiable Audio</div>
+        <p class="research-desc">Making classical DSP building blocks — IIR filters, attenuation stages, delay lines — fully differentiable and compatible with gradient-based learning frameworks.</p>
+      </div>
+      <div class="research-card fade-in">
+        <span class="research-icon">◈</span>
+        <div class="research-title">Audio Effects Modelling</div>
+        <p class="research-desc">Applying inference-time optimisation and style transfer to control audio effects. Collaborating on differentiable compression, EQ, and reverberation for production contexts.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="publications">
+  <div class="container">
+    <div class="section-label">Publications</div>
+    <div class="pub-list">
+
+      <div class="pub-item fade-in">
+        <div class="pub-year">2025</div>
+        <div class="pub-meta">
+          <div class="pub-title">Differentiable Attenuation Filters for Feedback Delay Networks</div>
+          <div class="pub-authors"><span class="me">Ilias Ibnyahya</span>, Joshua D. Reiss</div>
+          <span class="pub-venue">DAFx 2025</span>
+          <p class="pub-summary">A scalable parametric EQ approach for FDN attenuation filters using shared SOS biquads — fully differentiable and trainable via gradient descent. Reduces filter count by over two-thirds vs. graphic EQ designs while matching perceptual accuracy.</p>
+        </div>
+        <div class="pub-links">
+          <a href="https://arxiv.org/abs/2511.20380" class="pub-link paper" target="_blank">arXiv</a>
+          <a href="https://github.com/ilias-audio/iir_match" class="pub-link code" target="_blank">Code</a>
+        </div>
+      </div>
+
+      <div class="pub-item fade-in">
+        <div class="pub-year">2024</div>
+        <div class="pub-meta">
+          <div class="pub-title">ST-ITO: Controlling Audio Effects for Style Transfer with Inference-Time Optimization</div>
+          <div class="pub-authors">Christian J. Steinmetz, Shubhr Singh, Marco Comunità, <span class="me">Ilias Ibnyahya</span>, Shanxin Yuan, Emmanouil Benetos, Joshua D. Reiss</div>
+          <span class="pub-venue">ISMIR 2024</span><span class="pub-badge">Best Paper</span>
+          <p class="pub-summary">Style transfer across arbitrary audio effects using inference-time optimisation against a pretrained audio similarity metric — no retraining required. Applied to compression, EQ, delay, and reverberation across speech, voice, and full music.</p>
+        </div>
+        <div class="pub-links">
+          <a href="https://arxiv.org/abs/2408.08053" class="pub-link paper" target="_blank">arXiv</a>
+          <a href="https://github.com/csteinmetz1/st-ito" class="pub-link code" target="_blank">Code</a>
+        </div>
+      </div>
+
+      <div class="pub-item fade-in">
+        <div class="pub-year">2022</div>
+        <div class="pub-meta">
+          <div class="pub-title">A Method for Matching Room Impulse Responses with Feedback Delay Networks</div>
+          <div class="pub-authors"><span class="me">Ilias Ibnyahya</span>, Joshua D. Reiss</div>
+          <span class="pub-venue">AES Convention 153</span>
+          <p class="pub-summary">Multi-stage pipeline fitting FDN coefficients to a target room impulse response, combining IR feature extraction with a genetic algorithm using an MFCC cost function. A truncated IR hybrid enables better early reflection accuracy.</p>
+        </div>
+        <div class="pub-links">
+          <a href="https://aes2.org/publications/elibrary-page/?id=21917" class="pub-link paper" target="_blank">AES</a>
+          <a href="https://github.com/ilias-audio/MatchReverb" class="pub-link code" target="_blank">Code</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="tools">
+  <div class="container">
+    <div class="section-label">Tools</div>
+    <div class="tool-card fade-in">
+      <div class="tool-header">
+        <div>
+          <div class="tool-title">CPU / GPU Value Finder</div>
+          <div class="tool-tagline">Find the best-value desktop &amp; workstation hardware at real market prices</div>
+        </div>
+        <a href="https://cpu-gpu-value.vercel.app" class="btn btn-primary" target="_blank" style="white-space:nowrap; flex-shrink:0;">Launch Tool ↗</a>
+      </div>
+      <p class="tool-desc">
+        Tired of paying MSRP? This tool scrapes live eBay pricing across GPUs and CPUs — both consumer and professional-grade — and ranks them by performance-per-pound. Whether you're building a desktop rig or sourcing a workstation, it cuts through the noise and shows you where the genuine value is right now.
+      </p>
+      <div class="tool-chips">
+        <span class="chip">GPUs</span>
+        <span class="chip">CPUs</span>
+        <span class="chip">Desktop</span>
+        <span class="chip">Workstation / Pro</span>
+        <span class="chip">Live eBay Pricing</span>
+        <span class="chip">Performance / £ Ranking</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="contact">
+  <div class="container">
+    <div class="section-label">Contact</div>
+    <div class="contact-inner">
+      <div>
+        <div class="contact-heading">
+          Let's talk<br/><em>audio.</em>
+        </div>
+        <p style="color:var(--muted); font-size:13px; max-width:360px;">
+          Open to collaborations in differentiable DSP, audio effects research, and industry applications of intelligent audio processing.
+        </p>
+      </div>
+      <div class="contact-links">
+        <a href="https://www.linkedin.com/in/ilias-ibnyahya/" class="contact-link" target="_blank">LinkedIn</a>
+        <a href="https://github.com/ilias-audio" class="contact-link" target="_blank">GitHub</a>
+        <a href="https://scholar.google.com/citations?user=XW1iWGgAAAAJ" class="contact-link" target="_blank">Google Scholar</a>
+        <a href="https://c4dm.eecs.qmul.ac.uk" class="contact-link" target="_blank">C4DM</a>
+        <a href="mailto:i.ibnyahya@qmul.ac.uk" class="contact-link">i.ibnyahya@qmul.ac.uk</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <span>© 2025 Ilias Ibnyahya</span>
+      <span style="color:var(--border)">· · ·</span>
+      <span>C4DM · Queen Mary University of London</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Cursor
+  const cursor = document.getElementById('cursor');
+  document.addEventListener('mousemove', e => {
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top  = e.clientY + 'px';
+  });
+  document.querySelectorAll('a, button').forEach(el => {
+    el.addEventListener('mouseenter', () => cursor.classList.add('big'));
+    el.addEventListener('mouseleave', () => cursor.classList.remove('big'));
+  });
+
+  // Nav scroll
+  const nav = document.getElementById('nav');
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 40);
+  });
+
+  // Waveform bars
+  const waveform = document.getElementById('waveform');
+  for (let i = 0; i < 48; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'waveform-bar';
+    bar.style.height           = (Math.random() * 36 + 8) + 'px';
+    bar.style.animationDelay   = (Math.random() * 1.4) + 's';
+    bar.style.animationDuration= (0.8 + Math.random() * 0.8) + 's';
+    bar.style.opacity          = 0.4 + Math.random() * 0.6;
+    waveform.appendChild(bar);
+  }
+
+  // Scroll fade-in
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); }
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
